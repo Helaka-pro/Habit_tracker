@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Grit</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.45.4/supabase.min.js"></script>
+<style>
+  :root{
+    --bg:#000000;
+    --card-radius:22px;
+    --text:#ffffff;
+    --text-dim:#9a9a9a;
+    --accent:#7c7ff2;
+    --green:#12261d;
+    --green-text:#a9e8c9;
+    --maroon:#2a1417;
+    --maroon-text:#f2a9ad;
+    --brown:#241a0a;
+    --brown-text:#f2b25a;
+    --magenta:#c93ce0;
+    --teal:#3fd8cf;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Segoe UI,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  #app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;
+    padding-bottom:96px;position:relative;}
+
+  /* ---------- Auth screen ---------- */
+  .auth-wrap{display:flex;flex-direction:column;justify-content:center;min-height:100vh;
+    padding:32px;max-width:480px;margin:0 auto;}
+  .auth-wrap h1{font-size:40px;margin:0 0 4px;letter-spacing:-0.5px;}
+  .auth-wrap p.sub{color:var(--text-dim);margin:0 0 32px;font-size:15px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:6px;}
+  .field input{width:100%;padding:14px 16px;border-radius:14px;border:1px solid #2a2a2a;
+    background:#111;color:var(--text);font-size:16px;outline:none;}
+  .field input:focus{border-color:var(--accent);}
+  .btn-primary{width:100%;padding:15px;border-radius:14px;border:none;background:var(--accent);
+    color:#fff;font-size:16px;font-weight:600;cursor:pointer;margin-top:6px;}
+  .btn-primary:disabled{opacity:0.5;}
+  .btn-link{background:none;border:none;color:var(--text-dim);font-size:14px;margin-top:18px;
+    cursor:pointer;text-align:center;width:100%;}
+  .auth-error{color:#f2a9ad;font-size:13px;margin-top:10px;min-height:16px;}
+
+  /* ---------- Header ---------- */
+  header{padding:18px 18px 4px;display:flex;align-items:center;justify-content:space-between;}
+  .pill{display:flex;align-items:center;gap:2px;background:#151515;border-radius:22px;padding:8px;}
+  .pill button{background:#1f1f1f;border:none;color:#fff;width:38px;height:38px;border-radius:18px;
+    display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;}
+  header h1{font-size:22px;font-weight:700;margin:0;}
+  .icon-btn{background:#151515;border:none;color:#fff;width:44px;height:44px;border-radius:22px;
+    display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;}
+
+  /* ---------- Date strip ---------- */
+  .date-strip{display:flex;justify-content:space-between;padding:14px 14px 8px;overflow-x:auto;}
+  .day{display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;cursor:pointer;}
+  .day .dow{font-size:12px;color:var(--text-dim);}
+  .day .num{width:38px;height:38px;border-radius:19px;display:flex;align-items:center;justify-content:center;
+    font-size:15px;font-weight:600;background:#141428;}
+  .day.selected .num{background:var(--accent);color:#fff;}
+  .day.today .dow{color:var(--accent);font-weight:700;}
+
+  /* ---------- Habit list ---------- */
+  .list{padding:14px 14px 0;display:flex;flex-direction:column;gap:14px;}
+  .habit-card{border-radius:var(--card-radius);padding:18px;display:flex;align-items:center;gap:14px;
+    position:relative;min-height:64px;}
+  .habit-card .streak{position:absolute;top:12px;left:16px;font-size:13px;font-weight:700;display:flex;
+    align-items:center;gap:3px;}
+  .habit-card .emoji{font-size:30px;line-height:1;}
+  .habit-card .info{flex:1;min-width:0;padding-top:6px;}
+  .habit-card .info .name{font-size:18px;font-weight:700;margin-bottom:2px;}
+  .habit-card .info .sub{font-size:13px;opacity:0.75;}
+  .habit-card .action{width:46px;height:46px;border-radius:23px;border:2px solid rgba(255,255,255,0.35);
+    display:flex;align-items:center;justify-content:center;font-size:18px;background:rgba(255,255,255,0.06);
+    color:#fff;cursor:pointer;flex-shrink:0;}
+  .habit-card .action.done{background:#fff;color:#111;border:none;}
+  .habit-card.c-green{background:var(--green);color:var(--green-text);}
+  .habit-card.c-maroon{background:var(--maroon);color:var(--maroon-text);}
+  .habit-card.c-brown{background:var(--brown);color:var(--brown-text);}
+  .habit-card.c-magenta{background:var(--magenta);color:#2a0a33;}
+  .habit-card.c-teal{background:var(--teal);color:#062824;}
+  .habit-card.c-magenta .action, .habit-card.c-teal .action{border-color:rgba(0,0,0,0.25);}
+
+  .empty{padding:60px 24px;text-align:center;color:var(--text-dim);}
+  .empty .big{font-size:34px;margin-bottom:10px;}
+
+  /* ---------- Add habit modal ---------- */
+  .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;z-index:10;}
+  .sheet-backdrop.open{display:block;}
+  .sheet{position:fixed;left:0;right:0;bottom:0;background:#141414;border-radius:24px 24px 0 0;
+    padding:22px 20px 30px;max-width:480px;margin:0 auto;z-index:11;transform:translateY(100%);
+    transition:transform 0.25s ease;max-height:85vh;overflow-y:auto;}
+  .sheet.open{transform:translateY(0);}
+  .sheet h2{margin:0 0 16px;font-size:20px;}
+  .swatches{display:flex;gap:10px;margin-bottom:16px;}
+  .swatch{width:34px;height:34px;border-radius:17px;cursor:pointer;border:2px solid transparent;}
+  .swatch.selected{border-color:#fff;}
+  .row2{display:flex;gap:10px;}
+  .row2 .field{flex:1;}
+
+  /* ---------- Bottom nav ---------- */
+  nav.tabbar{position:fixed;left:0;right:0;bottom:16px;max-width:440px;margin:0 auto;
+    background:rgba(20,20,26,0.9);backdrop-filter:blur(14px);border-radius:26px;
+    display:flex;padding:10px 6px;border:1px solid rgba(255,255,255,0.08);}
+  nav.tabbar button{flex:1;background:none;border:none;color:var(--text-dim);display:flex;
+    flex-direction:column;align-items:center;gap:4px;font-size:11px;cursor:pointer;padding:6px 0;}
+  nav.tabbar button .ic{font-size:19px;}
+  nav.tabbar button.active{color:var(--accent);}
+
+  /* ---------- Stats / Settings screens ---------- */
+  .screen{padding:18px;}
+  .screen h2{font-size:26px;margin:6px 0 18px;}
+  .stat-row{display:flex;justify-content:space-between;background:#141414;padding:16px 18px;
+    border-radius:16px;margin-bottom:10px;align-items:center;}
+  .stat-row .v{font-size:20px;font-weight:700;}
+  .bars{display:flex;align-items:flex-end;gap:8px;height:120px;margin:20px 0;}
+  .bars .bar{flex:1;background:var(--accent);border-radius:6px 6px 0 0;min-height:4px;}
+  .bars-labels{display:flex;gap:8px;margin-top:-14px;}
+  .bars-labels span{flex:1;text-align:center;font-size:11px;color:var(--text-dim);}
+  .settings-item{display:flex;justify-content:space-between;align-items:center;padding:16px 4px;
+    border-bottom:1px solid #1c1c1c;}
+  .settings-item .lbl{color:var(--text-dim);font-size:14px;}
+  .logout{width:100%;padding:15px;border-radius:14px;border:1px solid #3a1c1c;background:#1a0d0d;
+    color:#f2a9ad;font-size:15px;font-weight:600;margin-top:26px;cursor:pointer;}
+</style>
+</head>
+<body>
+<div id="app"><div class="empty"><div class="big">✋</div>Loading Grit…</div></div>
+
+<script>
+/* =========================================================================
+   GRIT — personal habit tracker
+   Fill these in with your own Supabase project's values (Project Settings
+   → API). The anon/public key is safe to expose here as long as Row Level
+   Security is enabled on both tables (see schema.sql).
+   ========================================================================= */
+const SUPABASE_URL = "https://uepdmxajmnmzqdahzxuu.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_iqTQtLDeRHIiWtkLs6wvkQ_fVCZFF9K";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const COLORS = [
+  { id: "green",   swatch: "#1f4d38" },
+  { id: "maroon",  swatch: "#6e2a30" },
+  { id: "brown",   swatch: "#5a3d15" },
+  { id: "magenta", swatch: "#c93ce0" },
+  { id: "teal",    swatch: "#3fd8cf" },
+];
+
+let state = {
+  user: null,
+  habits: [],
+  logs: {},          // { "habitId_YYYY-MM-DD": {value, completed} }
+  selectedDate: new Date(),
+  tab: "habits",
+  authMode: "signin",
+};
+
+const app = document.getElementById("app");
+const fmt = d => d.toISOString().slice(0, 10);
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+/* ---------------------------- AUTH ---------------------------- */
+
+async function init() {
+  const { data: { session } } = await sb.auth.getSession();
+  state.user = session?.user || null;
+  sb.auth.onAuthStateChange((_event, session) => {
+    state.user = session?.user || null;
+    render();
+  });
+  render();
+}
+
+async function signIn(email, password) {
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  return error;
+}
+async function signUp(email, password) {
+  const { error } = await sb.auth.signUp({ email, password });
+  return error;
+}
+async function signOut() {
+  await sb.auth.signOut();
+}
+
+function renderAuth() {
+  app.innerHTML = `
+    <div class="auth-wrap">
+      <h1>Grit</h1>
+      <p class="sub">${state.authMode === "signin" ? "Log in to your habits." : "Create your account."}</p>
+      <div class="field">
+        <label>Email</label>
+        <input id="email" type="email" autocomplete="username" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+      </div>
+      <button class="btn-primary" id="authSubmit">${state.authMode === "signin" ? "Log in" : "Sign up"}</button>
+      <div class="auth-error" id="authError"></div>
+      <button class="btn-link" id="authToggle">${state.authMode === "signin" ? "No account yet? Sign up" : "Already have an account? Log in"}</button>
+    </div>`;
+
+  document.getElementById("authToggle").onclick = () => {
+    state.authMode = state.authMode === "signin" ? "signup" : "signin";
+    render();
+  };
+  document.getElementById("authSubmit").onclick = async () => {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const errBox = document.getElementById("authError");
+    errBox.textContent = "";
+    if (!email || !password) { errBox.textContent = "Enter an email and password."; return; }
+    const err = state.authMode === "signin" ? await signIn(email, password) : await signUp(email, password);
+    if (err) errBox.textContent = err.message;
+    else if (state.authMode === "signup") errBox.textContent = "Check your email to confirm, then log in.";
+  };
+}
+
+/* ---------------------------- DATA ---------------------------- */
+
+async function loadHabits() {
+  const { data } = await sb.from("habits").select("*").order("created_at", { ascending: true });
+  state.habits = data || [];
+}
+
+async function loadLogsForWeek(centerDate) {
+  const start = new Date(centerDate); start.setDate(start.getDate() - 4);
+  const end = new Date(centerDate); end.setDate(end.getDate() + 4);
+  const { data } = await sb.from("habit_logs").select("*")
+    .gte("date", fmt(start)).lte("date", fmt(end));
+  state.logs = {};
+  (data || []).forEach(l => { state.logs[l.habit_id + "_" + l.date] = l; });
+}
+
+async function loadStreakLogs(habitId) {
+  const { data } = await sb.from("habit_logs").select("date,completed")
+    .eq("habit_id", habitId).eq("completed", true).order("date", { ascending: false });
+  return data || [];
+}
+
+function computeStreak(logs) {
+  if (!logs.length) return 0;
+  let streak = 0;
+  let cursor = new Date();
+  for (;;) {
+    const key = fmt(cursor);
+    if (logs.some(l => l.date === key)) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    else break;
+  }
+  return streak;
+}
+
+async function upsertLog(habit, date, value, completed) {
+  const key = habit.id + "_" + fmt(date);
+  const existing = state.logs[key];
+  const row = {
+    habit_id: habit.id, user_id: state.user.id, date: fmt(date),
+    value, completed,
+  };
+  if (existing?.id) row.id = existing.id;
+  const { data } = await sb.from("habit_logs").upsert(row).select().single();
+  if (data) state.logs[key] = data;
+}
+
+/* ---------------------------- MAIN RENDER ---------------------------- */
+
+function render() {
+  if (!state.user) { renderAuth(); return; }
+  if (state.tab === "habits") renderHabits();
+  else if (state.tab === "stats") renderStats();
+  else renderSettings();
+}
+
+function dateRange() {
+  const days = [];
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(state.selectedDate);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+async function renderHabits() {
+  const today = new Date();
+  const days = dateRange();
+
+  app.innerHTML = `
+    <header>
+      <div class="pill"><button>≡</button><button>☰</button></div>
+      <h1>${sameDay(state.selectedDate, today) ? "Today" : DOW[state.selectedDate.getDay()]}</h1>
+      <div style="display:flex;gap:8px;">
+        <button class="icon-btn" id="addBtn">＋</button>
+      </div>
+    </header>
+    <div class="date-strip" id="dateStrip"></div>
+    <div class="list" id="habitList"></div>
+    ${tabbarHTML()}
+    <div class="sheet-backdrop" id="backdrop"></div>
+    <div class="sheet" id="addSheet">${addSheetHTML()}</div>
+  `;
+
+  const strip = document.getElementById("dateStrip");
+  days.forEach(d => {
+    const el = document.createElement("div");
+    el.className = "day" + (sameDay(d, state.selectedDate) ? " selected" : "") + (sameDay(d, today) ? " today" : "");
+    el.innerHTML = `<div class="dow">${DOW[d.getDay()]}</div><div class="num">${d.getDate()}</div>`;
+    el.onclick = async () => { state.selectedDate = d; await loadLogsForWeek(d); render(); };
+    strip.appendChild(el);
+  });
+
+  const list = document.getElementById("habitList");
+  if (!state.habits.length) {
+    list.innerHTML = `<div class="empty"><div class="big">🌱</div>No habits yet. Tap + to add your first one.</div>`;
+  } else {
+    for (const h of state.habits) {
+      const key = h.id + "_" + fmt(state.selectedDate);
+      const log = state.logs[key];
+      const value = log?.value || 0;
+      const completed = !!log?.completed;
+      const target = h.target_value || 1;
+      const unitLabel = h.target_unit && h.target_unit !== "none" ? `${value}/${target} ${h.target_unit}` : "";
+      const streakLogs = await loadStreakLogs(h.id);
+      const streak = computeStreak(streakLogs);
+
+      const card = document.createElement("div");
+      card.className = `habit-card c-${h.color || "green"}`;
+      card.innerHTML = `
+        ${streak > 0 ? `<div class="streak">🔥${streak}</div>` : ""}
+        <div class="emoji">${h.emoji || "⭐"}</div>
+        <div class="info">
+          <div class="name">${h.name}</div>
+          <div class="sub">Every day${unitLabel ? ", " + unitLabel : ""}</div>
+        </div>
+        <div class="action ${completed ? "done" : ""}">${completed ? "✓" : "＋"}</div>
+      `;
+      card.querySelector(".action").onclick = async (e) => {
+        e.stopPropagation();
+        if (completed) { await upsertLog(h, state.selectedDate, 0, false); }
+        else {
+          const newVal = Math.min(target, value + 1);
+          await upsertLog(h, state.selectedDate, newVal, newVal >= target);
+        }
+        render();
+      };
+      list.appendChild(card);
+    }
+  }
+
+  document.getElementById("addBtn").onclick = () => openSheet();
+  wireTabbar();
+  wireSheet();
+}
+
+function sameDay(a, b) { return fmt(a) === fmt(b); }
+
+/* ---------------------------- ADD HABIT SHEET ---------------------------- */
+
+function addSheetHTML() {
+  return `
+    <h2>New habit</h2>
+    <div class="row2">
+      <div class="field"><label>Emoji</label><input id="hEmoji" maxlength="2" value="⭐" /></div>
+      <div class="field" style="flex:3"><label>Name</label><input id="hName" placeholder="Read for 20 minutes" /></div>
+    </div>
+    <div class="field"><label>Color</label>
+      <div class="swatches">
+        ${COLORS.map((c,i) => `<div class="swatch ${i===0?"selected":""}" data-color="${c.id}" style="background:${c.swatch}"></div>`).join("")}
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Target amount</label><input id="hTarget" type="number" min="1" value="1" /></div>
+      <div class="field"><label>Unit (optional)</label><input id="hUnit" placeholder="minutes, cups…" /></div>
+    </div>
+    <button class="btn-primary" id="saveHabit">Save habit</button>
+  `;
+}
+
+function openSheet() {
+  document.getElementById("backdrop").classList.add("open");
+  document.getElementById("addSheet").classList.add("open");
+}
+function closeSheet() {
+  document.getElementById("backdrop").classList.remove("open");
+  document.getElementById("addSheet").classList.remove("open");
+}
+
+function wireSheet() {
+  const backdrop = document.getElementById("backdrop");
+  if (!backdrop) return;
+  backdrop.onclick = closeSheet;
+  document.querySelectorAll(".swatch").forEach(sw => {
+    sw.onclick = () => {
+      document.querySelectorAll(".swatch").forEach(s => s.classList.remove("selected"));
+      sw.classList.add("selected");
+    };
+  });
+  const saveBtn = document.getElementById("saveHabit");
+  if (saveBtn) saveBtn.onclick = async () => {
+    const name = document.getElementById("hName").value.trim();
+    if (!name) return;
+    const emoji = document.getElementById("hEmoji").value.trim() || "⭐";
+    const target = parseInt(document.getElementById("hTarget").value, 10) || 1;
+    const unit = document.getElementById("hUnit").value.trim() || "none";
+    const color = document.querySelector(".swatch.selected")?.dataset.color || "green";
+    await sb.from("habits").insert({
+      user_id: state.user.id, name, emoji, target_value: target, target_unit: unit, color,
+    });
+    closeSheet();
+    await loadHabits();
+    render();
+  };
+}
+
+/* ---------------------------- TABBAR ---------------------------- */
+
+function tabbarHTML() {
+  const tab = state.tab;
+  return `
+    <nav class="tabbar">
+      <button data-tab="habits" class="${tab==='habits'?'active':''}"><span class="ic">☰</span>Habits</button>
+      <button data-tab="stats" class="${tab==='stats'?'active':''}"><span class="ic">📊</span>Statistics</button>
+      <button data-tab="settings" class="${tab==='settings'?'active':''}"><span class="ic">⚙️</span>Settings</button>
+    </nav>`;
+}
+function wireTabbar() {
+  document.querySelectorAll("nav.tabbar button").forEach(b => {
+    b.onclick = () => { state.tab = b.dataset.tab; render(); };
+  });
+}
+
+/* ---------------------------- STATS ---------------------------- */
+
+async function renderStats() {
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
+  const { data: logs } = await sb.from("habit_logs").select("date,completed")
+    .gte("date", fmt(days[0])).eq("completed", true);
+
+  const totalHabits = state.habits.length || 1;
+  const counts = days.map(d => (logs || []).filter(l => l.date === fmt(d)).length);
+  const max = Math.max(totalHabits, ...counts, 1);
+
+  const bestStreak = Math.max(0, ...(await Promise.all(state.habits.map(h => loadStreakLogs(h.id).then(computeStreak)))));
+
+  app.innerHTML = `
+    <div class="screen">
+      <h2>Statistics</h2>
+      <div class="stat-row"><span>Habits tracked</span><span class="v">${state.habits.length}</span></div>
+      <div class="stat-row"><span>Best current streak</span><span class="v">🔥 ${bestStreak}</span></div>
+      <div class="bars">${counts.map(c => `<div class="bar" style="height:${(c/max*120)||2}px"></div>`).join("")}</div>
+      <div class="bars-labels">${days.map(d => `<span>${DOW[d.getDay()][0]}</span>`).join("")}</div>
+    </div>
+    ${tabbarHTML()}
+  `;
+  wireTabbar();
+}
+
+/* ---------------------------- SETTINGS ---------------------------- */
+
+function renderSettings() {
+  app.innerHTML = `
+    <div class="screen">
+      <h2>Settings</h2>
+      <div class="settings-item"><span>Account</span><span class="lbl">${state.user.email}</span></div>
+      <div class="settings-item"><span>Habits</span><span class="lbl">${state.habits.length}</span></div>
+      <button class="logout" id="logoutBtn">Log out</button>
+    </div>
+    ${tabbarHTML()}
+  `;
+  document.getElementById("logoutBtn").onclick = signOut;
+  wireTabbar();
+}
+
+/* ---------------------------- BOOT ---------------------------- */
+
+sb.auth.onAuthStateChange(async (_e, session) => {
+  state.user = session?.user || null;
+  if (state.user) { await loadHabits(); await loadLogsForWeek(state.selectedDate); }
+  render();
+});
+init().then(async () => {
+  if (state.user) { await loadHabits(); await loadLogsForWeek(state.selectedDate); render(); }
+});
+</script>
+</body>
+</html>
