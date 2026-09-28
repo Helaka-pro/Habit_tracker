@@ -149,6 +149,7 @@
   .detail-bottom{display:flex;gap:12px;align-items:center;}
   .ghost{width:56px;height:56px;border-radius:28px;border:none;background:rgba(255,255,255,0.08);color:#5ec8be;font-size:20px;cursor:pointer;flex-shrink:0;}
   .done-btn{background:#5ec8be;color:#08312d;margin-top:0;height:56px;border-radius:28px;}
+  .menu button.edit{color:#fff;}
 </style>
 </head>
 <body>
@@ -398,7 +399,7 @@ function detailSheetHTML() {
         <button class="round-btn" id="detailClose">✕</button>
         <div class="menu-wrap">
           <button class="round-btn" id="detailMenuBtn">•••</button>
-          <div class="menu" id="detailMenu" hidden><button id="detailDelete">🗑 Delete habit</button></div>
+          <div class="menu" id="detailMenu" hidden><button class="edit" id="detailEdit">✏️ Edit target</button><button id="detailDelete">🗑 Delete habit</button></div>
         </div>
       </div>
       <div class="detail-title">${h.emoji || "⭐"} ${esc(h.name)}</div>
@@ -445,6 +446,19 @@ function wireDetail() {
 
   const menu = document.getElementById("detailMenu");
   document.getElementById("detailMenuBtn").onclick = () => { menu.hidden = !menu.hidden; };
+  document.getElementById("detailEdit").onclick = async () => {
+    const input = prompt(`New target amount for "${h.name}":`, target);
+    if (input === null) return;
+    const newTarget = parseInt(input, 10);
+    if (!newTarget || newTarget < 1) { alert("Enter a number of 1 or more."); return; }
+    const { error } = await sb.from("habits").update({ target_value: newTarget }).eq("id", h.id);
+    if (error) { alert("Couldn't update: " + error.message); return; }
+    const log = state.logs[key];
+    if (log) await sb.from("habit_logs").update({ completed: (log.value || 0) >= newTarget }).eq("id", log.id);
+    await loadHabits();
+    await loadLogsForWeek(state.selectedDate);
+    render();
+  };
   document.getElementById("detailDelete").onclick = async () => {
     if (!confirm(`Delete "${h.name}" and all of its history? This can't be undone.`)) return;
     const { error } = await sb.from("habits").delete().eq("id", h.id);
